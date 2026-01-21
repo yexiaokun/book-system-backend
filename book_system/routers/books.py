@@ -11,16 +11,16 @@ router = APIRouter(prefix="/books", tags=["书籍管理"])
 
 
 @router.post("/", response_model=Book)
-def books(book_data: BookCreate,
+def books(book_in: BookCreate,
           session: Session = Depends(get_session),
           current_user: User = Depends(get_current_user)
           ):
     print(f"{current_user}正在创建图书...")
+    book_data = book_in.model_dump()
     new_book = Book(
-        title=book_data.title,
-        price=book_data.price
+        **book_data,
+        owner_id=current_user.id
     )
-    new_book.owner_id = current_user.id
     session.add(new_book)
     session.commit()
     session.refresh(new_book)

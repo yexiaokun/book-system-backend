@@ -1,7 +1,10 @@
 from sqlmodel import create_engine, Session
+import os
 
-
-DATABASE_URL = "mysql+pymysql://root:root@127.0.0.1:3306/book_system"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "mysql+pymysql://root:root@127.0.0.1:3306/book_system"
+    )
 engine = create_engine(DATABASE_URL, echo=True)
 
 

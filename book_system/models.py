@@ -6,6 +6,8 @@ from typing import Optional
 class BookCreate(BaseModel):
     title: str = Field(min_length=1,max_length=50)
     price: float = Field(gt=0)
+    author: str
+    description: str
 
 class Book(SQLModel,table=True):
     id: Optional[int] = Field(primary_key=True, default=None)
