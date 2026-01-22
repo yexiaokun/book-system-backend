@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from database import get_session
 from models import User
@@ -26,19 +27,18 @@ def register(user_in: UserCreate, session: Session = Depends(get_session)):
 
     return StandardResponse(data=new_user)
 
-@router.post("/login", response_model=StandardResponse[Token])
-def login(user_in: UserCreate, session: Session = Depends(get_session)):
-    user = session.exec(select(User).where(User.username == user_in.username)).first()
+@router.post("/login", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.username == form_data.username)).first()
     if not user:
         raise HTTPException(status_code=400, detail="用户名或密码错误")
     
-    if not verify_password(user_in.password, user.hashed_password):
+    if not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="用户名或密码错误")
     
     access_token = create_access_token(data={"sub": user.username})
-    token_obj = Token(access_token=access_token, token_type="bearer")
 
-    return StandardResponse(data=token_obj)
+    return Token(access_token=access_token, token_type="bearer")
 
 @router.get("/me", response_model=StandardResponse[User])
 def read_users_me(current_user: User = Depends(get_current_user)):
