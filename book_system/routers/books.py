@@ -30,9 +30,10 @@ async def create_book(book_in: BookCreate,
     return StandardResponse(data=new_book)
 
 @router.get("/", response_model=StandardResponse[List[Book]])
-async def get_all_books(session: AsyncSession                                    = Depends(get_session)):
+async def get_all_books(session: AsyncSession = Depends(get_session)):
     books_data = select(Book)
-    books = await session.exec(books_data).all()
+    result = await session.exec(books_data)
+    books = result.all()
     return StandardResponse(data=books)
 
 @router.get("/{book_id}", response_model=StandardResponse[Book])
