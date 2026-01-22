@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, APIRouter
-from sqlmodel import select
+from sqlmodel import select, delete
 from typing import List
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -86,7 +86,9 @@ async def delete_book(book_id: int,
         raise HTTPException(status_code=403, detail="你不是作者，不可以删除这本书！")
     if book.is_borrowed == True:
         raise HTTPException(status_code=400, detail="书籍已被借出，无法删除")
-    session.delete(book)
+    
+    statement = delete(Book).where(Book.id == book_id)
+    session.exec(statement)
     print(f"🔥 正在执行删除提交: {book.title}")
     await session.commit()
     return StandardResponse(message=f"成功删除《{book.title}》")
