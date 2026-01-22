@@ -88,7 +88,7 @@ async def delete_book(book_id: int,
         raise HTTPException(status_code=400, detail="书籍已被借出，无法删除")
     
     statement = delete(Book).where(Book.id == book_id)
-    session.exec(statement)
+    await session.exec(statement)
     print(f"🔥 正在执行删除提交: {book.title}")
     await session.commit()
     return StandardResponse(message=f"成功删除《{book.title}》")
