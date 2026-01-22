@@ -28,20 +28,20 @@ def books(book_in: BookCreate,
     print(f"数据已存入数据库，book_id为{new_book.id}，书名为《{new_book.title}》")
     return StandardResponse(data=new_book)
 
-@router.get("/", response_model=List[Book])
+@router.get("/", response_model=StandardResponse[List[Book]])
 def get_all_books(session: Session = Depends(get_session)):
     books_data = select(Book)
     books = session.exec(books_data).all()
-    return books
+    return StandardResponse(data=books)
 
-@router.get("/{book_id}", response_model=Book)
+@router.get("/{book_id}", response_model=StandardResponse[Book])
 def get_one_book(book_id: int, session: Session = Depends(get_session)):
     book = session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="找不到这本书")
-    return book
+    return StandardResponse(data=book)
 
-@router.patch("/{book_id}/borrow", response_model=Book)
+@router.patch("/{book_id}/borrow", response_model=StandardResponse[Book])
 def borrow_book(book_id: int, session: Session = Depends(get_session)):
     book = session.get(Book, book_id)
     if not book:
@@ -52,10 +52,10 @@ def borrow_book(book_id: int, session: Session = Depends(get_session)):
     session.refresh(book)
 
     generate_pdf_and_send_email.delay(book.title)
-    return book
+    return StandardResponse(data=book)
 
 
-@router.patch("/{book_id}/return", response_model=Book)
+@router.patch("/{book_id}/return", response_model=StandardResponse[Book])
 def return_book(book_id: int, session: Session = Depends(get_session)):
     book = session.get(Book, book_id)
     if not book:
@@ -66,10 +66,10 @@ def return_book(book_id: int, session: Session = Depends(get_session)):
     session.refresh(book)
 
     log_operation.delay(book.title)
-    return book
+    return StandardResponse(data=book)
 
 
-@router.delete("/{book_id}")
+@router.delete("/{book_id}", response_model=StandardResponse)
 def delete_book(book_id: int,
                 session: Session = Depends(get_session),
                 current_user: User = Depends(get_current_user)
@@ -83,4 +83,4 @@ def delete_book(book_id: int,
         raise HTTPException(status_code=403, detail="你不是作者，不可以删除这本书！")
     session.delete(book)
     session.commit()
-    return {"msg": f"成功删除id为{book_id}的《{book.title}》"}
+    return StandardResponse(message=f"成功删除《{book.title}》")
