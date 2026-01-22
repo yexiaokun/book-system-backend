@@ -87,5 +87,6 @@ async def delete_book(book_id: int,
     if book.is_borrowed == True:
         raise HTTPException(status_code=400, detail="书籍已被借出，无法删除")
     session.delete(book)
+    print(f"🔥 正在执行删除提交: {book.title}")
     await session.commit()
     return StandardResponse(message=f"成功删除《{book.title}》")
