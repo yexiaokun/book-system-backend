@@ -3,14 +3,15 @@ from sqlmodel import Session, select
 from typing import List
 
 from database import get_session
-from models import Book, BookCreate, User
+from models import Book, User
 from worker import generate_pdf_and_send_email, log_operation
 from dependencies import get_current_user
+from schemas import BookCreate, StandardResponse
 
 router = APIRouter(prefix="/books", tags=["书籍管理"])
 
 
-@router.post("/", response_model=Book)
+@router.post("/", response_model=StandardResponse[Book])
 def books(book_in: BookCreate,
           session: Session = Depends(get_session),
           current_user: User = Depends(get_current_user)
@@ -25,7 +26,7 @@ def books(book_in: BookCreate,
     session.commit()
     session.refresh(new_book)
     print(f"数据已存入数据库，book_id为{new_book.id}，书名为《{new_book.title}》")
-    return new_book
+    return StandardResponse(data=new_book)
 
 @router.get("/", response_model=List[Book])
 def get_all_books(session: Session = Depends(get_session)):
