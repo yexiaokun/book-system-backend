@@ -10,7 +10,8 @@ import models
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 数据库表结构同步中...")
-    SQLModel.metadata.create_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
     yield
     print("🛑 应用结束")
 

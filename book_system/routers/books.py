@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, APIRouter
-from sqlmodel import Session, select
+from sqlmodel import select
 from typing import List
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from database import get_session
 from models import Book, User
@@ -12,8 +13,8 @@ router = APIRouter(prefix="/books", tags=["书籍管理"])
 
 
 @router.post("/", response_model=StandardResponse[Book])
-def books(book_in: BookCreate,
-          session: Session = Depends(get_session),
+async def create_book(book_in: BookCreate,
+          session: AsyncSession = Depends(get_session),
           current_user: User = Depends(get_current_user)
           ):
     print(f"{current_user}正在创建图书...")
@@ -23,64 +24,67 @@ def books(book_in: BookCreate,
         owner_id=current_user.id
     )
     session.add(new_book)
-    session.commit()
-    session.refresh(new_book)
-    print(f"数据已存入数据库，book_id为{new_book.id}，书名为《{new_book.title}》")
+    await session.commit()
+    await session.refresh(new_book)
+
     return StandardResponse(data=new_book)
 
 @router.get("/", response_model=StandardResponse[List[Book]])
-def get_all_books(session: Session = Depends(get_session)):
+async def get_all_books(session: AsyncSession                                    = Depends(get_session)):
     books_data = select(Book)
-    books = session.exec(books_data).all()
+    books = await session.exec(books_data).all()
     return StandardResponse(data=books)
 
 @router.get("/{book_id}", response_model=StandardResponse[Book])
-def get_one_book(book_id: int, session: Session = Depends(get_session)):
-    book = session.get(Book, book_id)
+async def get_one_book(book_id: int, session: AsyncSession = Depends(get_session)):
+    book = await session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="找不到这本书")
     return StandardResponse(data=book)
 
 @router.patch("/{book_id}/borrow", response_model=StandardResponse[Book])
-def borrow_book(book_id: int, session: Session = Depends(get_session)):
-    book = session.get(Book, book_id)
+async def borrow_book(book_id: int, session: AsyncSession = Depends(get_session)):
+    book = await session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="书没找到")
+    if book.is_borrowed == True:
+        raise HTTPException(status_code=400, detail="该书已被借出")
     book.is_borrowed = True
     session.add(book)
-    session.commit()
-    session.refresh(book)
+    await session.commit()
+    await session.refresh(book)
 
     generate_pdf_and_send_email.delay(book.title)
     return StandardResponse(data=book)
 
 
 @router.patch("/{book_id}/return", response_model=StandardResponse[Book])
-def return_book(book_id: int, session: Session = Depends(get_session)):
-    book = session.get(Book, book_id)
+async def return_book(book_id: int, session: AsyncSession = Depends(get_session)):
+    book = await session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="书没找到")
     book.is_borrowed = False
     session.add(book)
-    session.commit()
-    session.refresh(book)
+    await session.commit()
+    await session.refresh(book)
 
     log_operation.delay(book.title)
     return StandardResponse(data=book)
 
 
 @router.delete("/{book_id}", response_model=StandardResponse)
-def delete_book(book_id: int,
-                session: Session = Depends(get_session),
+async def delete_book(book_id: int,
+                session: AsyncSession = Depends(get_session),
                 current_user: User = Depends(get_current_user)
                 ):
-    book = session.get(Book, book_id)
     print(f"👮‍♂️ 操作者是: {current_user.username}")
-    book = session.get(Book, book_id)
+    book = await session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="书没找到")
     if book.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="你不是作者，不可以删除这本书！")
+    if book.is_borrowed == True:
+        raise HTTPException(status_code=400, detail="书籍已被借出，无法删除")
     session.delete(book)
-    session.commit()
+    await session.commit()
     return StandardResponse(message=f"成功删除《{book.title}》")

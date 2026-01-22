@@ -1,25 +1,18 @@
-from sqlmodel import create_engine, Session
+from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import sessionmaker
 import os, time
+from typing import AsyncGenerator
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "mysql+pymysql://root:root@127.0.0.1:3306/book_system"
-    )
+DATABASE_URL = "mysql+aiomysql://root:root@db/book_system"
 
-def get_engine_with_retry():
-    while True:
-        try:
-            engine = create_engine(DATABASE_URL, echo=True)
-            with engine.connect() as conn:
-                print("✅ 数据库连接成功！")
-                return engine
-        except OperationalError:
-            print("⏳ 数据库正在启动中... 等待 3 秒后重试...")
-            time.sleep(3)
+engine = create_async_engine(DATABASE_URL, echo=True, future=True)
 
-engine = get_engine_with_retry()
+async_session = sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
+)
 
-def get_session():
-    with Session(engine) as session:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session() as session:
         yield session
