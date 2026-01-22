@@ -11,6 +11,7 @@ services:
       - PYTHONUNBUFFERED=1
     depends_on:
       - db
+      - redis
   db:
     image: mysql:8.0
     container_name: book_backend_db
@@ -22,7 +23,10 @@ services:
       - "3307:3306"
     volumes:
       - db_data:/var/lib/mysql
-
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
 
 volumes:
   db_data:
