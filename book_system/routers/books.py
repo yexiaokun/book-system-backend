@@ -1,7 +1,8 @@
 from fastapi import Depends, HTTPException, APIRouter
-from sqlmodel import select, delete
+from sqlmodel import select, delete, desc
 from typing import List
 from sqlmodel.ext.asyncio.session import AsyncSession
+from datetime import datetime
 
 from database import get_session
 from models import Book, User, BorrowHistory
@@ -66,17 +67,32 @@ async def borrow_book(book_id: int,
     await session.refresh(book)
 
     generate_pdf_and_send_email.delay(book.title)
-    
+
     return StandardResponse(data=book)
 
 
 @router.patch("/{book_id}/return", response_model=StandardResponse[Book])
-async def return_book(book_id: int, session: AsyncSession = Depends(get_session)):
+async def return_book(book_id: int,
+                      session: AsyncSession = Depends(get_session)
+                      ):
     book = await session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="书没找到")
+    if not book.is_borrowed:
+        raise HTTPException(status_code=400, detail="书未借出，无需归还")
     book.is_borrowed = False
     session.add(book)
+    statement = (
+        select(BorrowHistory).where(BorrowHistory.book_id == book_id)
+        .where(BorrowHistory.return_date == None)
+        .order_by(desc(BorrowHistory.borrow_date))
+    )
+    result = await session.exec(statement)
+    history_record = result.first()
+    if history_record:
+        history_record.return_date = datetime.now()
+        session.add(history_record)
+
     await session.commit()
     await session.refresh(book)
 
