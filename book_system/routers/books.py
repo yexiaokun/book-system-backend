@@ -4,7 +4,7 @@ from typing import List
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from database import get_session
-from models import Book, User
+from models import Book, User, BorrowHistory
 from worker import generate_pdf_and_send_email, log_operation
 from dependencies import get_current_user
 from schemas import BookCreate, StandardResponse
@@ -44,7 +44,10 @@ async def get_one_book(book_id: int, session: AsyncSession = Depends(get_session
     return StandardResponse(data=book)
 
 @router.patch("/{book_id}/borrow", response_model=StandardResponse[Book])
-async def borrow_book(book_id: int, session: AsyncSession = Depends(get_session)):
+async def borrow_book(book_id: int,
+                      session: AsyncSession = Depends(get_session),
+                      current_user: User = Depends(get_current_user)
+                      ):
     book = await session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="书没找到")
@@ -52,10 +55,18 @@ async def borrow_book(book_id: int, session: AsyncSession = Depends(get_session)
         raise HTTPException(status_code=400, detail="该书已被借出")
     book.is_borrowed = True
     session.add(book)
+
+    new_history = BorrowHistory(
+        user_id=current_user.id,
+        book_id=book.id
+    )
+    session.add(new_history)
+
     await session.commit()
     await session.refresh(book)
 
     generate_pdf_and_send_email.delay(book.title)
+    
     return StandardResponse(data=book)
 
 
