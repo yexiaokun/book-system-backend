@@ -1,6 +1,10 @@
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from jose import jwt
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -13,7 +17,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-SECRET_KEY = "my_super_secret_key"#真实项目中应使用secrets或其他例如base64来生成
+SECRET_KEY = os.getenv("SECRET_KEY")#真实项目中应使用secrets或其他例如base64来生成
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

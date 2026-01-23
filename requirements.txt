@@ -16,3 +16,9 @@ passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
 argon2-cffi
+
+pytest
+httpx
+pytest-asyncio
+
+python-dotenv

@@ -4,8 +4,11 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 import os, time
 from typing import AsyncGenerator
+from dotenv import load_dotenv
 
-DATABASE_URL = "mysql+aiomysql://root:root@db/book_system"
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_async_engine(DATABASE_URL, echo=True, future=True)
 
