@@ -20,7 +20,7 @@ services:
     container_name: book_backend_db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: book_system
       TZ: Asia/Shanghai
     ports:
