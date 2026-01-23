@@ -1,6 +1,6 @@
 from sqlmodel import Field, SQLModel
 from typing import Optional
-
+from datetime import datetime
 
 
 class Book(SQLModel,table=True):
@@ -21,3 +21,11 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     hashed_password: str
 
+
+
+class BorrowHistory(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    book_id: int = Field(foreign_key="book.id")
+    borrow_date: datetime = Field(default_factory=datetime.now)
+    return_date: Optional[datetime] = Field(default=None)
