@@ -90,8 +90,11 @@ async def return_book(book_id: int,
     result = await session.exec(statement)
     history_record = result.first()
     if history_record:
+        print(f"🔥 正在归还历史记录 ID: {history_record.id}")
         history_record.return_date = datetime.now()
         session.add(history_record)
+    else:
+        print("⚠️此书ID未找到未归还的借阅记录！")
 
     await session.commit()
     await session.refresh(book)
