@@ -6,6 +6,7 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
       - PYTHONUNBUFFERED=1
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -13,6 +14,7 @@ services:
     depends_on:
       - db
       - redis
+    restart: always
   db:
     image: mysql:8.0
     container_name: book_backend_db
@@ -27,8 +29,23 @@ services:
       - db_data:/var/lib/mysql
   redis:
     image: redis:alpine
+    container_name: book_backend_redis
     ports:
       - "6379:6379"
+  worker:
+    build: .
+    container_name: book_backend_worker
+    command: celery -A worker.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - TZ=Asia/Shanghai
+    depends_on:
+      - redis
+      - db
+    restart: always
+    
 
 volumes:
   db_data:
