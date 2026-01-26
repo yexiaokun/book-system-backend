@@ -10,6 +10,7 @@ class Book(SQLModel,table=True):
     description: Optional[str] = Field(default=None)
     author: str = Field(default="未知作者")
     is_borrowed: bool = Field(default=False)
+    count: int
 
     #外键，连接User表，作为所有者id
     owner_id: Optional[int] = Field(default=None, foreign_key="user.id")

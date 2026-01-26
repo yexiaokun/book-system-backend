@@ -17,6 +17,7 @@ class BookCreate(BaseModel):
     price: float = Field(gt=0)
     author: str
     description: str
+    count: int = Field(gt=0, default=0)
 
 
 class UserCreate(BaseModel):

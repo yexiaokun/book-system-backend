@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, APIRouter
-from sqlmodel import select, delete, desc
+from sqlmodel import select, delete, desc, update
 from typing import List
 from sqlmodel.ext.asyncio.session import AsyncSession
 from datetime import datetime
@@ -18,7 +18,7 @@ async def create_book(book_in: BookCreate,
           session: AsyncSession = Depends(get_session),
           current_user: User = Depends(get_current_user)
           ):
-    print(f"{current_user}正在创建图书...")
+    print(f"{current_user.username}正在创建图书...")
     book_data = book_in.model_dump()
     new_book = Book(
         **book_data,
@@ -51,54 +51,59 @@ async def borrow_book(book_id: int,
                       ):
     book = await session.get(Book, book_id)
     if not book:
-        raise HTTPException(status_code=404, detail="书没找到")
-    if book.is_borrowed == True:
-        raise HTTPException(status_code=400, detail="该书已被借出")
-    book.is_borrowed = True
-    session.add(book)
-
-    new_history = BorrowHistory(
-        user_id=current_user.id,
-        book_id=book.id
-    )
-    session.add(new_history)
-
-    await session.commit()
+        raise HTTPException(status_code=404, detail="库里暂时没有这本书")
+    async with session.begin():
+        statement = (
+            update(Book)
+            .where(Book.id == book_id)
+            .where(Book.count > 0)
+            .values(count=Book.count - 1)
+        )
+        result = await session.exec(statement)
+        
+        if result.rowcount == 0:
+            raise HTTPException(status_code=400, detail="手慢了，库存不足！")
+        new_history = BorrowHistory(
+            user_id=current_user.id,
+            book_id=book_id
+        )
+        session.add(new_history)
+    
     await session.refresh(book)
-
     generate_pdf_and_send_email.delay(book.title)
-
     return StandardResponse(data=book)
 
 
 @router.patch("/{book_id}/return", response_model=StandardResponse[Book])
 async def return_book(book_id: int,
-                      session: AsyncSession = Depends(get_session)
+                      session: AsyncSession = Depends(get_session),
+                      current_user: User = Depends(get_current_user)
                       ):
     book = await session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="书没找到")
-    if not book.is_borrowed:
-        raise HTTPException(status_code=400, detail="书未借出，无需归还")
-    book.is_borrowed = False
-    session.add(book)
+    
     statement = (
-        select(BorrowHistory).where(BorrowHistory.book_id == book_id)
+        select(BorrowHistory)
+        .where(BorrowHistory.book_id == book_id)
+        .where(BorrowHistory.user_id == current_user.id)
         .where(BorrowHistory.return_date == None)
         .order_by(desc(BorrowHistory.borrow_date))
     )
+
     result = await session.exec(statement)
     history_record = result.first()
-    if history_record:
-        print(f"🔥 正在归还历史记录 ID: {history_record.id}")
-        history_record.return_date = datetime.now()
-        session.add(history_record)
-    else:
-        print("⚠️此书ID未找到未归还的借阅记录！")
+    if not history_record:
+        raise HTTPException(status_code=400, detail="你没有借阅这本书，或已归还")
+    print(f"🔥 用户 {current_user.username} 正在归还历史记录 ID: {history_record.id}")
+    history_record.return_date = datetime.now()
+
+    book.count += 1
+    session.add(book)
+    
 
     await session.commit()
     await session.refresh(book)
-
     log_operation.delay(book.title)
     return StandardResponse(data=book)
 
@@ -114,11 +119,23 @@ async def delete_book(book_id: int,
         raise HTTPException(status_code=404, detail="书没找到")
     if book.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="你不是作者，不可以删除这本书！")
-    if book.is_borrowed == True:
-        raise HTTPException(status_code=400, detail="书籍已被借出，无法删除")
     
-    statement = delete(Book).where(Book.id == book_id)
-    await session.exec(statement)
+    statement = (
+        select(BorrowHistory)
+        .where(BorrowHistory.book_id == book_id)
+        .where(BorrowHistory.return_date == None)
+    )
+    result = await session.exec(statement)
+    unreturned_record = result.first()
+
+    if unreturned_record:
+        raise HTTPException(
+            status_code=400,
+            detail="无法删除:该书仍有未归还记录，请等待所有书籍归还后再试"
+        )
+
+    delete_statement = delete(Book).where(Book.id == book_id)
+    await session.exec(delete_statement)
     print(f"🔥 正在执行删除提交: {book.title}")
     await session.commit()
     return StandardResponse(message=f"成功删除《{book.title}》")
