@@ -52,23 +52,24 @@ async def borrow_book(book_id: int,
     book = await session.get(Book, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="库里暂时没有这本书")
-    async with session.begin():
-        statement = (
-            update(Book)
-            .where(Book.id == book_id)
-            .where(Book.count > 0)
-            .values(count=Book.count - 1)
-        )
-        result = await session.exec(statement)
-        
-        if result.rowcount == 0:
-            raise HTTPException(status_code=400, detail="手慢了，库存不足！")
-        new_history = BorrowHistory(
-            user_id=current_user.id,
-            book_id=book_id
-        )
-        session.add(new_history)
     
+    statement = (
+        update(Book)
+        .where(Book.id == book_id)
+        .where(Book.count > 0)
+        .values(count=Book.count - 1)
+    )
+    result = await session.exec(statement)
+    
+    if result.rowcount == 0:
+        await session.rollback()
+        raise HTTPException(status_code=400, detail="手慢了，库存不足！")
+    new_history = BorrowHistory(
+        user_id=current_user.id,
+        book_id=book_id
+    )
+    session.add(new_history)
+    await session.commit()
     await session.refresh(book)
     generate_pdf_and_send_email.delay(book.title)
     return StandardResponse(data=book)
