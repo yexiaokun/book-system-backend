@@ -3,7 +3,7 @@ import asyncio
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 
 
@@ -39,10 +39,12 @@ def get_url():
     if not url:
         # 如果环境变量没取到，试图读 alembic.ini (兜底)
         url = config.get_main_option("sqlalchemy.url")
+    if url and "pymysql" in url:
+        url = url.replace("pymysql", "aiomysql")
     
     if not url:
         raise ValueError("❌ 错误: 未找到 DATABASE_URL 环境变量！")
-
+    return url
 
 
 def run_migrations_offline() -> None:
@@ -67,16 +69,20 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    """在线模式 (核心逻辑)"""
+    """在线模式 (简化版)"""
     
-    # 1. 把从环境变量拿到的 URL 塞进配置里
-    configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = get_url()
+    # 👇👇👇 核心修改：直接拿 URL，不绕弯子 👇👇👇
+    db_url = get_url()
+    
+    # 🐛 调试打印：让你看到到底读到了啥
+    print(f"-------- 🐛 DEBUG: Alembic is using URL: {db_url} --------")
 
-    # 2. 创建异步引擎
-    connectable = async_engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
+    if not db_url:
+        raise ValueError("❌ 致命错误: DATABASE_URL 是空的！请检查 docker-compose.yml 和 .env")
+
+    # 直接创建引擎，简单粗暴有效
+    connectable = create_async_engine(
+        db_url,
         poolclass=pool.NullPool,
     )
 
@@ -84,6 +90,7 @@ async def run_migrations_online() -> None:
         await connection.run_sync(do_run_migrations)
 
     await connectable.dispose()
+
 
 if context.is_offline_mode():
     run_migrations_offline()
